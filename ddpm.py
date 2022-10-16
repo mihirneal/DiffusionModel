@@ -6,11 +6,14 @@ from torch import optim
 from tqdm import tqdm
 import logging
 from torch.utils.tensorboard import SummaryWriter
+from modules import UNet
+
+from utils import getData, saveImages, setupLogging
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s: %(message)s", level=logging.INFO, datefmt="%I:%M:%S")
 
 class DiffusionModel:
-    def __init__(self, noise_steps = 1000, beta_start=1e-4, beta_end=0.02, img_size = 64, device='mps'):
+    def __init__(self, noise_steps = 1000, beta_start=1e-4, beta_end=0.02, img_size = 64, device='cuda'):
         self.noise_steps = noise_steps
         self.beta_start = beta_start
         self.beta_end = beta_end
@@ -54,3 +57,54 @@ class DiffusionModel:
         x = (x * 255).type(torch.uint8)
         return x
          
+
+
+
+def train(args):
+    setupLogging(args.run_name)
+    device = args.device
+    dataloader = getData(args)
+    model = UNet().to(device)
+    optimizer = optim.Adam(model.parameters(), lr = args.lr)
+    criterion = nn.MSELoss()
+    diffusion = DiffusionModel(img_size= args.img_size, device= device)
+    logger = SummaryWriter(os.path.join("runs", args.run_name))
+    l = len(dataloader)
+
+    for ep in range(args.epochs):
+        logging.info(f'Epoch {ep}:')
+        pbar = tqdm(dataloader)
+        for i, (img, _) in enumerate(pbar):
+            img = img.to(device)
+            t = diffusion.sampleTimesteps(img.shape[0]).to(device)
+            x_t, noise = diffusion.noiseImage(img, t)
+            pred_noise = model(x_t, t)
+            loss = criterion(noise, pred_noise)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            pbar.set_postfix(MSE=loss.item())
+            logger.add_scalar("MSE", loss.item(), global_step=ep*l + i)
+        
+        sampled_img = diffusion.sample(model, n=img.shape[0])
+        saveImages(sampled_img, os.path.join("Results", args.run_name, f'{ep}.jpg'))
+        torch.save(model.state_dict(). os.path.join("models", args.run_name, f'ckpt.pt'))
+
+
+def launch():
+    import argparse
+    parser = argparse.ArgumentParser()
+    args = parser.parse_args()
+    args.run_name = "DDPM Unconditional"
+    args.epochs = 500
+    args.batch_size = 12
+    args.img_size = 64
+    args.dataset_path = ""
+    args.device = "cuda"
+    args.lr = 3e-4
+    train(args)
+
+    if __name__ == "__main__":
+        launch()
