@@ -106,5 +106,5 @@ def launch():
     args.lr = 3e-4
     train(args)
 
-    if __name__ == "__main__":
-        launch()
+if __name__ == "__main__":
+    launch()

@@ -16,13 +16,13 @@ class DoubleConv(nn.Module):
         self.residual = residual
         if not mid_channels:
             mid_channels = out_channels
-        self.double_conv = nn.Sequential([
+        self.double_conv = nn.Sequential(
             nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1, bias=False),
             nn.GroupNorm(1, mid_channels),
             nn.GELU(),
             nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1, bias=False),
             nn.GroupNorm(1, out_channels)
-        ])
+        )
     
     def forward(self, x):
         if self.residual:
@@ -33,19 +33,19 @@ class DoubleConv(nn.Module):
 class Down(nn.Module):
     def __init__(self, in_channels, out_channels, emb_dim=256):
         super().__init__()
-        self.maxpool_conv = nn.Sequential([
+        self.maxpool_conv = nn.Sequential(
             nn.MaxPool2d(2),
             DoubleConv(in_channels, in_channels, residual=True),
             DoubleConv(in_channels, out_channels)
-        ])
+        )
 
-        self.emb_layer = nn.Sequential([
+        self.emb_layer = nn.Sequential(
             nn.SiLU(),
             nn.Linear(
                 emb_dim,
                 out_channels
             )
-        ])
+        )
     
     def forward(self, x, t):
         x = self.maxpool_conv(x)
@@ -57,18 +57,18 @@ class Up(nn.Module):
         super().__init__()
 
         self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-        self.conv = nn.Sequential([
+        self.conv = nn.Sequential(
             DoubleConv(in_channels, in_channels, residual=True),
             DoubleConv(in_channels, out_channels, in_channels // 2)
-        ])
+        )
 
-        self.emb_layer = nn.Sequential([
+        self.emb_layer = nn.Sequential(
             nn.SiLU(),
             nn.Linear(
                 emb_dim,
                 out_channels
             )
-        ])
+        )
     
     def forward(self, x, skip_x, t):
         x = self.up(x)
@@ -85,12 +85,12 @@ class SelfAttention(nn.Module):
         self.size = size
         self.mha = nn.MultiheadAttention(channels, 4, batch_first=True)
         self.ln = nn.LayerNorm([channels]),
-        self.ff_self = nn.Sequential([
+        self.ff_self = nn.Sequential(
             nn.LayerNorm([channels]),
             nn.Linear(channels, channels),
             nn.GELU(),
             nn.Linear(channels, channels)
-        ])
+        )
 
     def forward(self, x):
         x = x.view(-1, self.channels, self.size * self.size).swapaxes(1, 2)
